@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
     // Приложение упадет, т.к. exception поднимется до родительского скоупа.
     private fun test1() {
         scope.launch {
-            log("test launch")
+            log("test1 launch")
 
             try {
                 val action1 = async {
@@ -66,16 +66,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Асинк операции которые выполняются в своем контексте.
-    // Тоже падаем, так контекст наследуется, и ошибка поднимется в родительский контекст.
+    // Тоже падаем. Т.к async вызывается из scope (scope.launch), withContext(Dispatchers.IO) внутри
+    // в свою очередь также наследуется от того же скопа, и ошибка поднимается обратно в scope.
     private fun test2() {
         scope.launch {
-            log("test launch")
+            log("test2 launch")
             try {
                 val action1 = async {
-                    runAction1_1()
+                    withContext(Dispatchers.IO) {
+                        runAction1()
+                    }
                 }
                 val action2 = async {
-                    runAction2_1()
+                    withContext(Dispatchers.IO) {
+                        runAction2()
+                    }
                 }
 
                 val result = action1.await() + action2.await()
@@ -89,11 +94,10 @@ class MainActivity : AppCompatActivity() {
     // Можно поймать ошибку через глобальный эксепшн хендлер
     // Не падаем!
     private fun test3() {
-        // Можно создать скоуп Dispatchers.Main + exceptionHandler
-        //scopeExceptionHandler.launch {
-        // А можно передать обработчик в лаунч
+        // Можно создать отдельный скоуп (Dispatchers.Main + exceptionHandler)
+        // или передать обработчик в launch.
         scope.launch(exceptionHandler) {
-            log("test launch")
+            log("test3 launch")
             try {
                 val action1 = async {
                     runAction1()
@@ -110,18 +114,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Правильный способ! оборачивать внешним скопом. При оборачивании в скоуп ошибка которая
-    // придет в этот скоуп будет брошена выше и ее можно будет обработать в трай катч
+    // Правильный способ! Оборачивать внешним скопом. При оборачивании в скоуп ошибка которая
+    // придет в этот скоуп будет брошена выше и ее можно будет обработать в трай катч.
+    // Можно через coroutineScope или withContext.
     private fun test4() {
-        scope.launch(exceptionHandler) {
-            log("test launch")
+        scope.launch() {
+            log("test4 launch")
 
             try {
-                // Лучше всего делать 1 скоуп для всей операции. Хорошая документация у метода!
-                // раскоментируй посмотри.
                 coroutineScope {
-                    // Либо так.
-                    //withContext(Dispatchers.IO) {
                     val action1 = async {
                         runAction1()
                     }
@@ -132,10 +133,8 @@ class MainActivity : AppCompatActivity() {
                     val result = action1.await() + action2.await()
                     log("test result = $result")
                 }
-                //}
             } catch (e: Exception) {
                 log("test catch exception")
-                throw e
             }
         }
     }
