@@ -39,7 +39,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Просто асинк операции и трай катч
+    // Далее ряд тестов с асинхронными операциями. В тестах нужно дождаться двух операций и сложить их результат.
+    // runAction1, runAction2 - обычные suspend функции изображают видимость работы и runAction2 бросает исключение.
+    // runAction1_1, runAction2_1 - тоже самое, только внутри обернуты в withContext.
+
+    // Просто асинк операции и трай катч.
+    // Приложение упадет, т.к. exception поднимется до родительского скоупа.
     private fun test1() {
         scope.launch {
             log("test launch")
@@ -60,16 +65,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Асинк операции которые выполняются в своем контексте
+    // Асинк операции которые выполняются в своем контексте.
+    // Тоже падаем, так контекст наследуется, и ошибка поднимется в родительский контекст.
     private fun test2() {
         scope.launch {
             log("test launch")
             try {
                 val action1 = async {
-                    runAction1_1() // = withContext(Dispatcher.IO)
+                    runAction1_1()
                 }
                 val action2 = async {
-                    runAction2_1() // = withContext(Dispatcher.IO)
+                    runAction2_1()
                 }
 
                 val result = action1.await() + action2.await()
@@ -81,6 +87,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Можно поймать ошибку через глобальный эксепшн хендлер
+    // Не падаем!
     private fun test3() {
         // Можно создать скоуп Dispatchers.Main + exceptionHandler
         //scopeExceptionHandler.launch {
@@ -134,6 +141,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // Можно и так конечно, но тогда теряем фишку с отменой выполнения других корутин!
+    // Ошибку на runAction2_1 мы перехватим, но runAction1_1 будет продолжать выполнятся.
     private fun test5() {
         scope.launch {
             log("test launch")
